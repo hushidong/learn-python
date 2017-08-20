@@ -1,0 +1,412 @@
+\documentclass[twoside,11pt]{book}
+\usepackage[left=3cm,right=3cm,top=3cm,bottom=3cm]{geometry}
+\usepackage{ctex}
+\usepackage{etoolbox}
+\usepackage{listings}
+\usepackage[CJKbookmarks,%
+colorlinks=true,%
+bookmarksnumbered=true,%
+pdfstartview=FitH,%
+linkcolor=red,%
+anchorcolor=magenta,%
+citecolor=magenta]{hyperref}
+\usepackage{xcolor}
+\lstset{%
+keywordstyle=\color{blue}\bfseries,%\underbar,
+basicstyle=\scriptsize,%\footnotesize, % print whole listing small，footnotesize
+commentstyle=\color{green!50!black}, % white comments
+stringstyle=\ttfamily, % typewriter type for strings
+breaklines=true,
+%showspaces=true,
+extendedchars=false,
+columns=fullflexible,%flexible,
+frame=tb,
+numbers=left,
+numberstyle=\tiny\color{red},
+fontadjust=true,
+language=python}
+
+
+\begin{document}
+\title{python 学习笔记}
+\author{hzzmail\thanks{hzzmail@163.com}}
+\date{2017-08-14}
+\maketitle
+
+\chapter{理解字符编码及在文本编辑器、latex、python中的表现}
+
+之所以想要把字符编码问题搞清楚，是因为在学习python过程中遇到了一个问题。
+在dive in python(深入python 2.x 版)的第5章中，有一个fileinfo源代码，为理解它的代码并进行测试，我首先将代码转换到python3.x版(因为我安装的是3.6.2版)。主要的修改包括: print语句，MP3文件路径，以及Userdict基类换成dict，(其中有一个难点是: 修改后代码中fileinfo类继承的dict类没有setitem这一方法，不知道要怎么改。要解决它需要理解类的继承，特别是子类中重新实现的方法中调用一下父类的原方法的原因，是因为父类的一些参数也需要调用该方法进行设置)。修改完成后程序能输出结果，但是输出的只有文件名这一信息，这与希望给出的结果不符，于是开始需找其中的原因。
+
+从代码可以看到，在MP3文件的末尾通常存在以TAG开头的一段128字节的信息用于存储mp3的如专辑等其他信息，fileinfo实现的功能就是解析这段信息，然后输出这一段信息，可以知道的是这一段信息是byte(字节)类信息，这一段信息的解析和显示需要对字节的信息进行解码，那么之所以出现问题很可能来自该信息中文字符编码问题。
+
+首先我们了解一下汉字(或cjk字符)的unicode范围，这可以通过查unicode表知道，见表\ref{tab:unicode:cjk}，在latex中cjk字符的判断通常从2E80开始。
+
+\begin{table}[!htb]
+  \centering
+  \caption{汉字的unicode范围}\label{tab:unicode:cjk}
+  \begin{tabular}{|c|c|}
+    \hline
+    编码范围 & 字符类型 \\
+    \hline
+    2E00-2E7F &追加标点 \\
+    2E80-2EFF &cjk部首补充 \\
+    2FF0-2FFF &表意文字描述符 \\
+    3000-303F &cjk符号和标点 \\
+    3300-33FF &cjk兼容 \\
+    3400-4DBF &cjk统一表意符号扩展 \\
+    4E00-9FBF &cjk统一表意符号 \\
+    20000-2F8BF &中日韩统一表意文字扩展B \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+下面来分析一下前述字节信息可能存在的编码问题:
+
+\section{MP3文件TAG信息的编码}
+对于MP3文件，在windows操作系统中，如果利用属性/详细信息设置把MP3的艺术家、唱片、专辑等信息改成为拼音(即用英文字符)来表示，那么print输出显示是正常的拼音。而如果改回中文即输出字节内的字符存储信息。比如，《约定》这首歌，改成拼音后其中某段信息是yueding，若是改回中文则是\lstinline!\xd4\xbc\xb6\xa8!，这是一段字节信息(bytes对象)。
+因为输入的中文“约定”是知道的，因此很容易判断这一段字节内的存储信息是“约定”的字符编码。下面我们就要看看这到底是什么编码？
+
+\section{latex中的字符编码}
+因为平时用latex比较多，很容易想到用latex来查看/显示字符或者其对应的编码。于是首先利用latex做一个测试。
+
+在latex中十进制的字符编码用整数表示，十六进制的编码用双引号加编码表示，因为latex文档采用UTF-8字符格式存储，所以tex中利用\verb|`|字符所显示的是字符编码是unicode码。
+
+(\emph{这里面有个概念需要区分，字符存在多种编码方式比如unicode，gbk等，而文档的字符存储也有多种格式，比如utf-8格式，该格式存储的字符的实际信息是字符的unicode编码，又比如采用gb2312格式存储的文件的实际信息是字符的gb2312编码。有的字符编码有多种存储格式，比如unicode编码可以用utf-8存储，也可以用utf-16存储。换一种说法就是utf-8格式(或编码)其实是unicode码的一种实现，即用utf-8码表示unicode码。我个人的理解，utf-8从本质上来说是一种字符在字节中存储的二进制码的编码方式，这其实可以称为是一种存储格式，当然说成编码也没有问题。在我后面的讨论中格式和编码是相同的概念。})
+
+测试如下:
+
+十进制整数编码98对应的字符为:\char98
+
+十六进制整数编码26对应的字符为:\char"26
+
+十进制整数编码20013对应的字符为:\char20013
+
+字符b对应的十进制整数编码为:
+\newcounter{charcode}
+\setcounter{charcode}{`b}
+%\value{charcode}
+\thecharcode
+%\arabic{charcode}
+
+字符\&对应的十进制整数编码为:
+\setcounter{charcode}{`\&}
+\thecharcode
+%\arabic{charcode}
+
+字符中对应的十进制整数编码为:
+\setcounter{charcode}{`中}
+\thecharcode
+%\arabic{charcode}
+
+字符约对应的十进制整数编码为:
+\setcounter{charcode}{`约}
+\thecharcode
+%\arabic{charcode}
+
+字符定对应的十进制整数编码为:
+\setcounter{charcode}{`定}
+\thecharcode
+%\arabic{charcode}
+
+十六进制整数编码D4BC对应的字符是:\char"D4BC
+
+十六进制整数编码B6A8对应的字符是:\char"B6A8
+
+十六进制整数编码7EA6对应的字符是:\char"7EA6
+
+十六进制整数编码5B9A对应的字符是:\char"5B9A
+
+十六进制整数编码4E2D对应的字符是:\char"4E2D
+
+十六进制整数编码6587对应的字符是:\char"6587
+
+注意到，字节信息\lstinline!\xd4\xbc\xb6\xa8!实际对应的是约定这两个字符，那么这两个字符对应的编码是应该为D4BC和B6A8，但从latex输出看，显然这两个编码对应的字符不是“约定”，说明这两个编码不是unicode码，从输出看约定的unicode编码是7EA6和5B9A。所以很容易联想到这可能是操作系统的默认编码，而windows一般是gb2312编码。我们可以利用文本编辑工具来看一下是不是:
+
+\section{文本编辑器查看字符编码}
+利用notepad++或者notepad2文本编辑器，很容易生成不同存储格式的3个文件，内容均为约定两个字符，第一个文件a采用默认存储格式，第二个文件b采用gb2312格式，第三个文件c采用utf-8格式。
+
+利用ultraedit编辑器打开三个文件，并且利用十六进制编辑器查看文档存储的字节信息，可以看到:
+\begin{lstlisting}
+文件a:
+00000000h: D4 BC B6 A8                                     ; 约定
+
+文件b:
+00000000h: D4 BC B6 A8                                     ; 约定
+
+文件c:
+00000000h: E7 BA A6 E5 AE 9A                               ; 绾﹀畾
+\end{lstlisting}
+
+其中文件ab内容相同，说明系统默认存储格式为gb2312，而文件c内容看到两个字符采用了6个字节表示，一个字符分别是3个字节，这就是utf-8的存储格式，而因为系统默认显示字符存储格式也是gb2312，因此系统会根据两个字节的信息来显示字符于是就得到“绾﹀畾”这三个字符。可以想见，如果系统默认的字符存储格式是utf-8，那么文件c显示的字符将是约定。退出十六进制编辑器，查看文件c中两个字符的字符属性可以看到:
+\begin{lstlisting}
+对于约
+十进制值32422
+十六进制值0x7ea6
+
+对于定
+十进制值23450
+十六进制值0x5b9a
+\end{lstlisting}
+
+到这里可以清楚知道，系统默认采用gb2312格式对汉字进行存储。因此在python中如果要正确处理MP3的tag信息，那么就需要进行特殊的处理，即字节解码的时候要用相应的编码格式如gb2312，而不仅仅采用默认的utf-8格式。
+
+\section{python中的字符编码}
+
+对于python3，默认的字符串编码是unicode编码，默认的存储格式utf8，所以处理gb2312编码的字符等特殊的情况就需要特殊处理。
+
+在python中，表示字符串的是字符串对象，表示存储信息的是字节对象。一般处理围绕这两类对象进行。我们首先看一下python中的一些编码相关的工具:
+
+查看字符对象对应的字节存储对象，利用字符对象的encode方法，比如:
+\begin{lstlisting}
+>>> "约定".encode("gbk")
+b'\xd4\xbc\xb6\xa8'
+>>> "约定".encode("gb2312")
+b'\xd4\xbc\xb6\xa8'
+>>> "约定".encode("utf-8")
+b'\xe7\xba\xa6\xe5\xae\x9a'
+\end{lstlisting}
+
+查看字节存储对象对应的字符串对象，利用字节对象的decode方法，比如:
+\begin{lstlisting}
+>>> b'\xe7\xba\xa6\xe5\xae\x9a'.decode("utf-8")
+'约定'
+>>> b'\xd4\xbc\xb6\xa8'.decode("gb2312")
+'约定'
+\end{lstlisting}
+
+通过这两个方法可以在字符串对象和存储的字节对象之间互相转化。
+
+查看unicode字符的unicode编码用函数ord()，hex()将整数转化为16进制数字符串，oct()将整数转化为8进制数字符串，bin()将整数转化为2进制数字符串，int()将字符串参数转化为整数，str()将参数转换为字符串。
+比如:
+\begin{lstlisting}
+a=ord("中")
+>>> a
+20013
+>>> hex(a)
+'0x4e2d'
+>>> oct(a)
+'0o47055'
+>>> bin(a)
+'0b100111000101101'
+>>> int(0x4e2d)
+20013
+>>> int(0o47055)
+20013
+>>> int(0b100111000101101)
+20013
+>>>
+\end{lstlisting}
+
+通过这些函数可以得到字符的unicode编码，也可以在各种不同进制的编码之间做转换。
+
+如前所述，python3中字符与编码的转换主要依靠字符串和字节对象来进行处理，在基本的应用中使用encode和decode已经足够。事实上字符的编码问题在python中是比较常见的问题，colcloud的\href{www.unicode.org}{python3字符编码}和微寒的\href{www.unicode.org}{python3字符编码问题}两篇博客都讲的是字符编码导致的相关问题。
+
+
+关于python3的字符编码问题，的\href{www.unicode.org}{python3如何解决字符编码问题详解}和andrewleeeeee的\href{www.unicode.org}{python3字符编码}这两篇博客也给出了比较详细的说明。
+
+其中需要注意的是getdefaultencoding命令得到的默认编码是python的字节(存储)编码，而不是windows操作系统的，比如:
+\begin{lstlisting}
+>>> import sys
+>>> print('default encoding is:',sys.getdefaultencoding())
+default encoding is: utf-8
+\end{lstlisting}
+
+其中还有两个python函数type()和len()，在字符编码问题中可能会比较有用，type()用于查看对象的类型，len()输出对象的长度，比如:
+\begin{lstlisting}
+>>> code='中'.encode()
+>>> type(code)
+<class 'bytes'>
+>>> len(code)
+3
+>>> code
+b'\xe4\xb8\xad'
+>>> char=b'\xe7\xba\xa6'.decode()
+>>> type(char)
+<class 'str'>
+>>> len(char)
+1
+>>> char
+'约'
+>>>
+\end{lstlisting}
+
+为进一步了解，下面我们来看一看字符与unicode编码以及utf-8格式的关系:
+
+\section{python中的字符与unicode码、utf-8字节码的相互转换}
+首先介绍一下utf-8编码的规则:
+
+utf-8格式规则主要包括两条(参考:阮一峰的\href{www.sohu.com}{字符编码笔记:ASCII,Unicode和UTF-8}):
+
+(1) 对于单字节的符号，字节的第一位设为0，后面7位为这个符号的unicode码
+
+(2) 对于n字节符号(n>1)，第一个字节的前n位都设为1，第n+1位设为0，后面字节的前两位一律设为10。剩下的二进制位，从后向前填入字符unicode码的二进制数，多出的用0补充。
+
+需要注意: 在python3中，单字节的字符utf-8编码的二进制数通常是少于8位的，即高位的0是不给出的，在处理时要小心。
+
+在前一节我们介绍过使用ord()函数可以得到字符的unicode码，那么能否从unicode码得到字符呢？这其实也是很容易得到的。利用字符串字面常量(\emph{参见python3.6.2.chm文档2.4 Literals})即可实现，比如:
+
+\begin{lstlisting}
+>>> ord("国")
+22269
+>>> hex(ord("国"))
+'0x56fd'
+>>> '\u56fd'
+'国'
+>>>
+\end{lstlisting}
+
+该例表明python可以很容易的利用unicode码表示字符，或者得到字符的unicode码。这比查\href{www.unicode.org}{Unicode编码表}要来的方便。
+但这种直接使用字符字面常量获得字符的方法在程序使用中会有一些局限，因为很多时候无法直接输入一个字面常量，那么是否可以采用函数方法根据输入参数来返回对应的转换呢，包括从字符到unicode码，从字符到utf-8字节码，从unicode码到字符，从utf-8字节码到字符，从utf-8字节码到unicode码，从unicode码都utf-8字节码，答案当然是肯定的。下面我们来做这个事情:
+
+首先给出从utf-8字节码到unicode码的转换函数，采用两种方法，一种是利用python工具，另一种是根据上述给出的utf-8编码规则:
+
+方法1:
+\begin{lstlisting}[language=python]
+def bytestounicodeb(byteobj):
+    str=byteobj.decode()#以默认编码格式解析字节信息为字符
+    ucode=hex(ord(str)) #得到字符的整数编码并转化为16进制数表示的字符串
+    print("char's bytes is",byteobj)
+    print('char is',str)
+    print("char's code is %d, base=10" % ord(str))
+    print("char's code is %s, base=16" % ucode)
+    print("char's code is %s, base=2" % bin(ord(str)))
+\end{lstlisting}
+
+方法2:
+\begin{lstlisting}[language=python]
+def bytestounicode(byteobj):#验证utf-8格式
+    str=byteobj.decode()#以默认编码格式解析字节信息为字符
+    str0=bin(byteobj[0])#得到第一个字节的二进制数构成的字符串
+    nbytes=len(byteobj)#也可以用下面注释这一段来判断
+    # nbytes=0
+    # if len(str0)<10: #单字节字符高位的0不给出，所以加上0b后字符串位数会小于10
+    #     strucode=str0
+    # else:
+    #     for i in range(2,10):
+    #         if str0[i]=="0":
+    #             break
+    #         else:
+    #             nbytes+=1
+    if nbytes>1:
+        strucode='0b'+str0[2+nbytes:]#二进制字符前面加'0b'或者不加对于类型转换没有影响，这里为了显示效果加上它
+        for i in range(1,nbytes):
+            strucode+=bin(byteobj[i])[4:]#不是第一个字节则取0b10后的字符，即从第5个字符(第4个索引)开始
+    else:
+        strucode=str0
+    print("char's bytes is",byteobj)
+    print('char is',str)
+    print("char's code is %d, base=10" % int(strucode,base=2))
+    print("char's code is %s, base=16" % hex(int(strucode,base=2)))
+    print("char's code is %s, base=2" % strucode)
+\end{lstlisting}
+
+接着给出从unicode码都utf-8字节码或字符的函数，也给出两种，一种完全利用字符串操作，一种则利用整数的位操作
+
+方法1:
+\begin{lstlisting}[language=python]
+def unicodetochar(numobj):#利用二进制字符串的操作来得到utf8格式编码
+    if numobj < 0x007f:#确定字节数
+        nbytes=1
+    elif numobj < 0x07ff:
+        nbytes=2
+    elif numobj < 0xffff:
+        nbytes=3
+    elif numobj < 0x10ffff:
+        nbytes=4
+    else:
+        print("error")
+    ucodestr=bin(numobj)
+    blist=[]
+    for i in range(nbytes):#处理得到各个字节的信息
+        start=len(ucodestr)-6-6*i #不处理最前面一个字节时，取6个字符
+        end=len(ucodestr)-i*6
+        if i==nbytes-1: start=2 #处理最前面一个字节时，取去掉0b剩下的字符
+        #print(start,end,ucodestr[start:end])
+        if i==nbytes-1:
+            strheader='11111111'[:nbytes]
+            strheader+='00000000'[:8-nbytes-(end-start)]
+            # for j in range(nbytes): #上述两句用for循环也可以
+            #     strheader+='1'
+            # numzero=8-nbytes-(end-start)
+            # for j in range(numzero):
+            #     strheader+='0'
+            blist.insert(0,strheader+ucodestr[start:end])#存入blist列表中
+        else:
+            blist.insert(0,'10'+ucodestr[start:end])
+    strhex="".join(hex(int(elem,base=2))[2:] for elem in blist)#这里利用了join方法连接字符串
+    print("char's code is %d, base=10" % numobj)
+    print("char's code is %s, base=16" % hex(numobj))
+    print("char's code is %s, base=2" % ucodestr)
+    print("char's byte string is",strhex)
+    print("char's bytes is",bytes.fromhex(strhex))#fromhex的参数只要是由2个16进制的数的字符串构成即可
+    print("char is",bytes.fromhex(strhex).decode())
+\end{lstlisting}
+
+其中，首先根据unicode值的大小来确定utf-8编码的字节数，然后在对unicode值的二进制数字符串进行处理。utf-8的字节数划分范围见表\ref{tab:utf-8:bytes}(\emph{参见python3.6.2.chm文档 7.2.2. Encodings and Unicode}):
+\begin{table}[!htb]
+  \centering
+  \caption{utf-8编码字节数划分范围}\label{tab:utf-8:bytes}
+  \begin{tabular}{|c|c|}
+    \hline
+    Range & Encoding \\\hline
+    U-00000000 ... U-0000007F & 0xxxxxxx \\
+    U-00000080 ... U-000007FF & 110xxxxx 10xxxxxx \\
+    U-00000800 ... U-0000FFFF & 1110xxxx 10xxxxxx 10xxxxxx \\
+    U-00010000 ... U-0010FFFF & 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+
+方法2:
+\begin{lstlisting}[language=python]
+def unicodetocharb(numobj):#利用整数的位的操作来得到utf8格式编码
+    if numobj < 0x007f:#确定字节数
+        nbytes=1
+        ref=0 #00000000用于1字节的位或操作
+    elif numobj < 0x07ff:
+        nbytes=2
+        ref=0xc080 #1100000010000000用于2字节的位或操作
+    elif numobj < 0xffff:
+        nbytes=3
+        ref=0xe08080 #111000001000000010000000用于3字节的位或操作
+    elif numobj < 0x10ffff:
+        nbytes=4 #11110000100000001000000010000000用于4字节的位或操作
+        ref=0xf0808080
+    else:
+        print("error")
+    res=ref
+    src=numobj
+    for i in range(nbytes):#遍历nbytes个字节，顺序是从后往前
+        if i==nbytes-1:#处理最前面一个字节时剩下的位全部取出用于位或
+            a=src<<(i*8)
+            res=res |a
+        else:
+            a=src & 0x3f #不处理最前面一个字节时，取6位用于位或
+            src=src>>6 #源整数中，6位取出后直接丢弃
+            a=a<<(8*i) #把取出的6为放到i字节上用于位或
+            res=res | a
+    #print ("%x" %res)
+    strhex=("%x" %res)#这里利用了printf方式的字符串转换
+    print("char's code is %d, base=10" % numobj)
+    print("char's code is %s, base=16" % hex(numobj))
+    print("char's code is %s, base=2" % bin(numobj))
+    print("char's byte string is",strhex)
+    print("char's bytes is",bytes.fromhex(strhex))
+    print("char is",bytes.fromhex("%x" %res).decode())
+\end{lstlisting}
+
+第二种方法中采用位操作的思路，参考了zqiang3给出的\href{www.unicode.org}{unicode编码转utf-8编码}。
+
+
+\section{小结}
+
+利用python提供的工具基本能够满足字符与其编码的转换，如果在一些应用中需要函数来返回一些参数，可以利用文中给出的unicode到字符的转换函数。
+
+ps:详细测试程序见\href{run:./unicodetest.py}{unicodetest.py}
+
+\end{document}
+
