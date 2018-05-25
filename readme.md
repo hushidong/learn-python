@@ -1,4 +1,4 @@
-<b>Date of last change:2018-05-18</b>
+<b>Date of last change:2018-05-25</b>
 
 
 # A study note for python
@@ -24,12 +24,14 @@ A document recording the procedure of the author's python learning
 6. 利用 python 实现系统脚本实践
 7. 通过一个例子搞定 python 多线程和socket 编程
 8. 理解字符编码及在文本编辑器、latex、python 中的表现
+9. 利用pandas实现对execl表数据的分析
 
 
 
 ---------------------------------------------------------
 ## update history:
 
+date of change: 2018-05-25, add chapter：pandas.
 date of change: 2018-05-18, add some chapters.
 date of change: 2017-08-16, document completed on the whole.
 
